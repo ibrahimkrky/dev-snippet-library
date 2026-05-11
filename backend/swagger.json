@@ -1,0 +1,134 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Dev Snippet Library API",
+    "version": "1.0.0",
+    "description": "Geliştiriciler için Kod Parçacığı Kütüphanesi REST API Dokümantasyonu"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Yerel Geliştirme Sunucusu"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth (Kimlik Doğrulama)"],
+        "summary": "Yeni kullanıcı kaydı oluşturur",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "ahmet@muhendis.com" },
+                  "password": { "type": "string", "example": "gizlisifre123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Kullanıcı başarıyla oluşturuldu" },
+          "400": { "description": "Hatalı istek veya kullanımda olan e-posta" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth (Kimlik Doğrulama)"],
+        "summary": "Sisteme giriş yapar ve JWT döner",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "ahmet@muhendis.com" },
+                  "password": { "type": "string", "example": "gizlisifre123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Giriş başarılı, Token döndürüldü" },
+          "401": { "description": "Geçersiz e-posta veya şifre" }
+        }
+      }
+    },
+    "/api/snippets/public": {
+      "get": {
+        "tags": ["Snippets (Herkese Açık)"],
+        "summary": "Herkese açık (public) kod parçacıklarını listeler",
+        "responses": {
+          "200": { "description": "Başarılı" }
+        }
+      }
+    },
+    "/api/snippets/my-snippets": {
+      "get": {
+        "tags": ["Snippets (Kişisel)"],
+        "summary": "Kullanıcının kendi eklediği tüm kodları listeler",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Başarılı" },
+          "401": { "description": "Yetkisiz erişim (Token yok veya geçersiz)" }
+        }
+      }
+    },
+    "/api/snippets": {
+      "post": {
+        "tags": ["Snippets (Kişisel)"],
+        "summary": "Yeni bir kod parçacığı ekler",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string", "example": "Express Sunucu Kurulumu" },
+                  "codeContent": { "type": "string", "example": "const app = express(); app.listen(3000);" },
+                  "language": { "type": "string", "example": "JavaScript" },
+                  "category": { "type": "string", "example": "Backend" },
+                  "visibility": { "type": "string", "example": "public" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Kod başarıyla eklendi" }
+        }
+      }
+    },
+    "/api/snippets/{id}/upvote": {
+      "post": {
+        "tags": ["Snippets (Etkileşim)"],
+        "summary": "Herkese açık bir koda puan verir",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Oy başarıyla kaydedildi" },
+          "400": { "description": "Zaten oy verilmiş" }
+        }
+      }
+    }
+  }
+}
