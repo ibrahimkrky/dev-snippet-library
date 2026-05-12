@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const db = require('../models/db');
+const db = require('../config/db');
+const User = require('../models/User');
 require('dotenv').config();
 
 const registerUser = async (email, password) => {
@@ -21,6 +22,7 @@ const registerUser = async (email, password) => {
     );
 
     return result.rows[0];
+    return new User(row.email, row.password_hash, row.created_at);
 };
 
 const loginUser = async (email, password) => {
@@ -30,22 +32,23 @@ const loginUser = async (email, password) => {
         throw new Error('Geçersiz e-posta veya şifre.');
     }
 
-    const user = result.rows[0];
+    const userRow = result.rows[0];
 
     // 2. Şifreyi doğrula
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    const isMatch = await bcrypt.compare(password, userRow.password_hash);
     if (!isMatch) {
         throw new Error('Geçersiz e-posta veya şifre.');
     }
 
     // 3. JWT Üret
     const token = jwt.sign(
-        { email: user.email }, // Token içine sadece gerekli ve gizli olmayan bilgiyi koyuyoruz
+        { email: userRow.email }, // Token içine sadece gerekli ve gizli olmayan bilgiyi koyuyoruz
         process.env.JWT_SECRET,
         { expiresIn: '1h' } // Token 1 saat geçerli olacak
     );
 
-    return { email: user.email, token };
+    const user = new User(userRow.email, userRow.password_hash, userRow.created_at);
+    return { user, token };
 };
 
 module.exports = {

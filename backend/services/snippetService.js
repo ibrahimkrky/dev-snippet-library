@@ -1,4 +1,5 @@
-const db = require('../models/db');
+const db = require('../config/db');
+const Snippet = require('../models/Snippet');
 
 // Yeni Kod Ekleme
 const createSnippet = async (title, codeContent, language, category, userEmail, visibility) => {
@@ -11,6 +12,7 @@ const createSnippet = async (title, codeContent, language, category, userEmail, 
     const values = [title, codeContent, language, category, userEmail, visibility || 'private'];
     const result = await db.query(query, values);
     return result.rows[0];
+    return new Snippet(row.id, row.title, row.code_content, row.language, row.category, row.user_email, row.visibility, row.created_at);
 };
 
 // Kullanıcının Kendi Kodlarını Getirme (Read - Özel Arşiv)
@@ -18,7 +20,9 @@ const getUserSnippets = async (userEmail) => {
     // Sadece bu kullanıcıya ait olan kodları, en yeniden eskiye doğru sıralayarak getirir
     const query = `SELECT * FROM snippets WHERE user_email = $1 ORDER BY created_at DESC;`;
     const result = await db.query(query, [userEmail]);
-    return result.rows;
+    return result.rows.map(row => 
+        new Snippet(row.id, row.title, row.code_content, row.language, row.category, row.user_email, row.visibility, row.created_at)
+    );
 };
 
 // 3. Herkese Açık Kodları Getirme (Read - Public Feed)
@@ -33,7 +37,11 @@ const getPublicSnippets = async () => {
         ORDER BY vote_count DESC, created_at DESC;
     `;
     const result = await db.query(query);
-    return result.rows;
+    return result.rows.map(row => {
+        const snippet = new Snippet(row.id, row.title, row.code_content, row.language, row.category, row.user_email, row.visibility, row.created_at);
+        snippet.vote_count = row.vote_count; // SQL'den gelen ekstra alanı nesneye ekleyebiliriz
+        return snippet;
+    });
 };
 
 // Kod Güncelleme
@@ -58,7 +66,8 @@ const updateSnippet = async (id, userEmail, updates) => {
     if (result.rows.length === 0) {
         throw new Error('Kod bulunamadı veya bu işlemi yapmaya yetkiniz yok.');
     }
-    return result.rows[0];
+    const row = result.rows[0];
+    return new Snippet(row.id, row.title, row.code_content, row.language, row.category, row.user_email, row.visibility, row.created_at);
 };
 
 // Kod Silme
