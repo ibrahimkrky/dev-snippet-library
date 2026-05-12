@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dev Snippet Library</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">{" />"} Dev Snippet Library</div>
+        <div class="nav-links" id="navLinks">
+            <button id="navPublicFeed" class="nav-btn active">Akış</button>
+            <button id="navLogin" class="nav-btn btn-primary">Giriş Yap</button>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section id="authSection" class="view-section hidden">
+            <div class="auth-card">
+                <h2 id="authTitle">Sisteme Giriş</h2>
+                <form id="authForm">
+                    <input type="email" id="email" placeholder="E-posta Adresiniz" required>
+                    <input type="password" id="password" placeholder="Şifreniz" required>
+                    <button type="submit" id="authSubmitBtn" class="btn-primary">Giriş Yap</button>
+                </form>
+                <p class="auth-switch">
+                    Hesabın yok mu? <a href="#" id="toggleAuthMode">Kayıt Ol</a>
+                </p>
+            </div>
+        </section>
+
+        <section id="publicFeedSection" class="view-section">
+            <div class="section-header">
+                <h2>Topluluk Kodları</h2>
+                <p>Diğer geliştiricilerin paylaştığı herkese açık kod parçacıkları.</p>
+            </div>
+            <div id="publicSnippetsContainer" class="snippet-grid">
+                </div>
+        </section>
+
+        <section id="dashboardSection" class="view-section hidden">
+            <div class="dashboard-grid">
+                <div class="add-snippet-card">
+                    <h2>Yeni Kod Ekle</h2>
+                    <form id="addSnippetForm">
+                        <input type="text" id="title" placeholder="Kod Başlığı (Örn: Express Kurulumu)" required>
+                        <textarea id="codeContent" placeholder="Kod buraya gelecek..." rows="6" required></textarea>
+                        <div class="form-row">
+                            <input type="text" id="language" placeholder="Dil (Örn: JS)" required>
+                            <input type="text" id="category" placeholder="Kategori">
+                        </div>
+                        <select id="visibility">
+                            <option value="private">Sadece Ben Göreyim (Gizli)</option>
+                            <option value="public">Herkese Açık (Topluluk)</option>
+                        </select>
+                        <button type="submit" class="btn-primary w-100">Kütüphaneme Ekle</button>
+                    </form>
+                </div>
+
+                <div class="my-snippets-list">
+                    <h2>Benim Arşivim</h2>
+                    <div id="mySnippetsContainer" class="snippet-grid">
+                        </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
