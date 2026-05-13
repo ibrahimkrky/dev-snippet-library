@@ -1,32 +1,28 @@
 // === TEMEL AYARLAR VE DURUM YÖNETİMİ ===
 const API_URL = 'http://localhost:5000/api';
-let currentToken = localStorage.getItem('token'); // Tarayıcı hafızasından bileti al
-let isLoginMode = true; // Giriş mi yoksa Kayıt ekranında mıyız?
+let currentToken = localStorage.getItem('token');
+let isLoginMode = true;
+
+// YENİ: Düzenlenen kodun ID'sini ve kullanıcının kodlarını hafızada tutacağız
+let currentEditId = null; 
+let userSnippetsCache = []; 
 
 // === DOM ELEMANLARINI SEÇME ===
-// Menü Butonları
 const navPublicFeed = document.getElementById('navPublicFeed');
 const navLogin = document.getElementById('navLogin');
-
-// Ekranlar (Bölümler)
 const authSection = document.getElementById('authSection');
 const publicFeedSection = document.getElementById('publicFeedSection');
 const dashboardSection = document.getElementById('dashboardSection');
-
-// Formlar ve Alanlar
 const authForm = document.getElementById('authForm');
 const authTitle = document.getElementById('authTitle');
 const authSubmitBtn = document.getElementById('authSubmitBtn');
 const toggleAuthModeBtn = document.getElementById('toggleAuthMode');
 const addSnippetForm = document.getElementById('addSnippetForm');
-
-// İçerik Konteynerleri
 const publicSnippetsContainer = document.getElementById('publicSnippetsContainer');
 const mySnippetsContainer = document.getElementById('mySnippetsContainer');
 
 
 // === ARAYÜZ (UI) YÖNETİMİ ===
-// İstenilen ekranı gösterip diğerlerini gizler
 function showSection(sectionToShow) {
     authSection.classList.add('hidden');
     publicFeedSection.classList.add('hidden');
@@ -34,14 +30,11 @@ function showSection(sectionToShow) {
     sectionToShow.classList.remove('hidden');
 }
 
-// Menü butonlarını giriş durumuna göre günceller
 function updateNav() {
     if (currentToken) {
-        // Kullanıcı giriş yapmışsa
         navLogin.textContent = 'Çıkış Yap';
-        navLogin.classList.replace('btn-primary', 'btn-danger'); // Kırmızı buton (CSS'e ekleyeceğiz)
+        navLogin.classList.replace('btn-primary', 'btn-danger');
         
-        // Pano butonunu ekle (eğer yoksa)
         if (!document.getElementById('navDashboard')) {
             const dashBtn = document.createElement('button');
             dashBtn.id = 'navDashboard';
@@ -50,11 +43,11 @@ function updateNav() {
             dashBtn.onclick = () => {
                 showSection(dashboardSection);
                 loadMySnippets();
+                cancelEdit(); // Panoya geçerken formu sıfırla
             };
             navPublicFeed.after(dashBtn);
         }
     } else {
-        // Kullanıcı giriş yapmamışsa
         navLogin.textContent = 'Giriş Yap';
         navLogin.classList.replace('btn-danger', 'btn-primary');
         const dashBtn = document.getElementById('navDashboard');
@@ -64,10 +57,8 @@ function updateNav() {
 
 
 // === KİMLİK DOĞRULAMA (AUTH) İŞLEMLERİ ===
-// Giriş/Kayıt formunu dinleme
 authForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); // Sayfanın yenilenmesini engelle
-    
+    e.preventDefault();
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
@@ -78,13 +69,10 @@ authForm.addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         });
-
         const data = await response.json();
-
         if (!response.ok) throw new Error(data.error);
 
         if (isLoginMode) {
-            // Giriş başarılıysa token'ı kaydet ve panoya yönlendir
             currentToken = data.token;
             localStorage.setItem('token', currentToken);
             updateNav();
@@ -92,7 +80,6 @@ authForm.addEventListener('submit', async (e) => {
             loadMySnippets();
             authForm.reset();
         } else {
-            // Kayıt başarılıysa giriş ekranına yönlendir
             alert('Kayıt başarılı! Şimdi giriş yapabilirsiniz.');
             toggleAuthMode();
         }
@@ -101,7 +88,6 @@ authForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Giriş Yap / Kayıt Ol modları arasında geçiş
 function toggleAuthMode() {
     isLoginMode = !isLoginMode;
     authTitle.textContent = isLoginMode ? 'Sisteme Giriş' : 'Yeni Kayıt';
@@ -111,8 +97,7 @@ function toggleAuthMode() {
         : 'Zaten hesabın var mı? <a href="#" id="toggleAuthMode">Giriş Yap</a>';
     
     document.getElementById('toggleAuthMode').addEventListener('click', (e) => {
-        e.preventDefault();
-        toggleAuthMode();
+        e.preventDefault(); toggleAuthMode();
     });
 }
 document.getElementById('toggleAuthMode').addEventListener('click', (e) => {
@@ -122,8 +107,16 @@ document.getElementById('toggleAuthMode').addEventListener('click', (e) => {
 
 // === KOD PARÇACIKLARI (SNIPPETS) İŞLEMLERİ ===
 
-// HTML Kartı Oluşturma Şablonu
 function createSnippetCard(snippet, isPublicFeed = false) {
+    // YENİ: Panomuzdaysa (Public feed değilse) Sil ve Düzenle butonlarını ekle
+    const actionButtons = isPublicFeed 
+        ? `<button onclick="upvoteSnippet(${snippet.id})" class="nav-btn" style="color:var(--accent);">👍 Yabancıya Gitmesin (${snippet.vote_count})</button>`
+        : `<div style="display:flex; gap:10px;">
+                <button onclick="editSnippet(${snippet.id})" class="nav-btn" style="color:var(--accent);">✏️ Düzenle</button>
+                <button onclick="deleteSnippet(${snippet.id})" class="nav-btn" style="color:var(--danger);">🗑️ Sil</button>
+                <span style="color:var(--text-muted); font-size:0.8rem; margin-top:5px;">👁️ ${snippet.visibility === 'public' ? 'Herkese Açık' : 'Gizli'}</span>
+           </div>`;
+
     return `
         <div class="snippet-card" style="background: var(--bg-card); padding: 1rem; border-radius: 8px; border: 1px solid #334155; margin-bottom: 1rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
@@ -131,54 +124,42 @@ function createSnippetCard(snippet, isPublicFeed = false) {
                 <span style="background: #334155; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">${snippet.language}</span>
             </div>
             <pre style="background: #0f172a; padding: 1rem; border-radius: 4px; overflow-x: auto; color: #e2e8f0; font-family: monospace;"><code>${snippet.code_content}</code></pre>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted);">
-                <span>Kategori: ${snippet.category || 'Belirtilmemiş'}</span>
-                ${isPublicFeed ? 
-                    `<button onclick="upvoteSnippet(${snippet.id})" class="nav-btn" style="color:var(--accent);">
-                        👍 Yabancıya Gitmesin (${snippet.vote_count})
-                     </button>` 
-                    : `<span>👁️ ${snippet.visibility === 'public' ? 'Herkese Açık' : 'Gizli'}</span>`
-                }
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 0.8rem;">
+                <span style="color: var(--text-muted);">Kategori: ${snippet.category || 'Belirtilmemiş'}</span>
+                ${actionButtons}
             </div>
         </div>
     `;
 }
 
-// Herkese Açık Akışı Yükle
 async function loadPublicFeed() {
     try {
         const response = await fetch(`${API_URL}/snippets/public`);
         const snippets = await response.json();
-        
         publicSnippetsContainer.innerHTML = snippets.length > 0 
             ? snippets.map(s => createSnippetCard(s, true)).join('') 
             : '<p>Henüz buralar çok ıssız...</p>';
-    } catch (error) {
-        console.error("Akış yüklenemedi:", error);
-    }
+    } catch (error) { console.error("Akış yüklenemedi:", error); }
 }
 
-// Kullanıcının Kendi Kodlarını Yükle
 async function loadMySnippets() {
     try {
         const response = await fetch(`${API_URL}/snippets/my-snippets`, {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         const snippets = await response.json();
-        
+        userSnippetsCache = snippets; // Formu doldurmak için hafızaya aldık
         mySnippetsContainer.innerHTML = snippets.length > 0 
             ? snippets.map(s => createSnippetCard(s, false)).join('') 
             : '<p>Kütüphanen henüz boş. Hadi ilk kodunu ekle!</p>';
-    } catch (error) {
-        console.error("Kodlarınız yüklenemedi:", error);
-    }
+    } catch (error) { console.error("Kodlarınız yüklenemedi:", error); }
 }
 
-// Yeni Kod Ekleme
+// YENİ: Formu Gönderme (Hem Yeni Kayıt, Hem Güncelleme İçin Ortak Kullanım)
 addSnippetForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const newSnippet = {
+    const snippetData = {
         title: document.getElementById('title').value,
         codeContent: document.getElementById('codeContent').value,
         language: document.getElementById('language').value,
@@ -186,43 +167,95 @@ addSnippetForm.addEventListener('submit', async (e) => {
         visibility: document.getElementById('visibility').value
     };
 
+    // currentEditId doluysa Güncelleme (PUT), boşsa Yeni Kayıt (POST) işlemi yap
+    const isUpdate = currentEditId !== null;
+    const url = isUpdate ? `${API_URL}/snippets/${currentEditId}` : `${API_URL}/snippets`;
+    const method = isUpdate ? 'PUT' : 'POST';
+
     try {
-        const response = await fetch(`${API_URL}/snippets`, {
-            method: 'POST',
+        const response = await fetch(url, {
+            method: method,
             headers: { 
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${currentToken}` 
             },
-            body: JSON.stringify(newSnippet)
+            body: JSON.stringify(snippetData)
         });
 
-        if (!response.ok) throw new Error('Kod eklenemedi');
+        if (!response.ok) throw new Error(isUpdate ? 'Kod güncellenemedi' : 'Kod eklenemedi');
         
-        addSnippetForm.reset();
-        loadMySnippets(); // Listeyi yenile
-        alert('Kod başarıyla kütüphaneye eklendi!');
+        cancelEdit(); // Formu sıfırla
+        loadMySnippets(); // Panoyu yenile
+        loadPublicFeed(); // Herkese açık kodları yenile
+        alert(isUpdate ? 'Kod başarıyla güncellendi!' : 'Kod başarıyla kütüphaneye eklendi!');
     } catch (error) {
         alert(error.message);
     }
 });
 
-// Puan Verme İşlemi
+// YENİ: Düzenle Butonuna Tıklanınca Çalışacak Fonksiyon
+window.editSnippet = (id) => {
+    // Tıklanan kodu hafızadan bul
+    const snippet = userSnippetsCache.find(s => s.id === id);
+    if (!snippet) return;
+
+    // Formu doldur
+    document.getElementById('title').value = snippet.title;
+    document.getElementById('codeContent').value = snippet.code_content;
+    document.getElementById('language').value = snippet.language;
+    document.getElementById('category').value = snippet.category;
+    document.getElementById('visibility').value = snippet.visibility;
+
+    currentEditId = id; // Sisteme artık düzenleme modunda olduğumuzu söylüyoruz
+    
+    // Buton metnini değiştir ve formu öne çıkar
+    const submitBtn = addSnippetForm.querySelector('button[type="submit"]');
+    submitBtn.textContent = 'Kodu Güncelle';
+    submitBtn.style.backgroundColor = 'var(--accent)';
+    
+    // Sayfayı yukarı, formun olduğu yere kaydır
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// YENİ: Düzenlemeyi İptal Etmek veya Formu Sıfırlamak İçin
+function cancelEdit() {
+    addSnippetForm.reset();
+    currentEditId = null;
+    const submitBtn = addSnippetForm.querySelector('button[type="submit"]');
+    submitBtn.textContent = 'Kütüphaneme Ekle';
+}
+
+// YENİ: Sil Butonuna Tıklanınca Çalışacak Fonksiyon
+window.deleteSnippet = async (id) => {
+    // Yanlışlıkla basmalara karşı emin misin diye sor
+    if (!confirm('Bu kodu silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
+
+    try {
+        const response = await fetch(`${API_URL}/snippets/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (!response.ok) throw new Error('Silme işlemi başarısız oldu.');
+        
+        loadMySnippets(); // Panoyu yenile
+        loadPublicFeed(); // Herkese açık kodları yenile (silinenler çıksın)
+    } catch (error) {
+        alert(error.message);
+    }
+};
+
 async function upvoteSnippet(snippetId) {
     if (!currentToken) return alert('Oy vermek için önce giriş yapmalısınız!');
-    
     try {
         const response = await fetch(`${API_URL}/snippets/${snippetId}/upvote`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         const data = await response.json();
-        
         if (!response.ok) throw new Error(data.error);
-        
-        loadPublicFeed(); // Puanları güncellemek için akışı yenile
-    } catch (error) {
-        alert(error.message);
-    }
+        loadPublicFeed();
+    } catch (error) { alert(error.message); }
 }
 
 // === ÜST MENÜ (NAVBAR) YÖNLENDİRMELERİ ===
@@ -233,19 +266,13 @@ navPublicFeed.addEventListener('click', () => {
 
 navLogin.addEventListener('click', () => {
     if (currentToken) {
-        // Çıkış Yap İşlemi
         localStorage.removeItem('token');
         currentToken = null;
         updateNav();
         showSection(publicFeedSection);
         loadPublicFeed();
-    } else {
-        // Giriş Ekranını Aç
-        showSection(authSection);
-    }
+    } else { showSection(authSection); }
 });
 
-// === UYGULAMA İLK AÇILDIĞINDA ÇALIŞACAKLAR ===
 updateNav();
-loadPublicFeed(); 
-// Not: CSS için ufak bir eklenti (Çıkış yap butonu rengi için app.js içinde hallettik)
+loadPublicFeed();
